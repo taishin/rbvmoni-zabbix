@@ -6,9 +6,16 @@ require 'logger'
 require 'rbvmomi'
 require 'fileutils'
 
-ESX_GROUP = "VM ESXi"
-DS_GROUP = "VM Datastore"
-VM_GROUP = "VM VirtualMachine"
+print_usage if ARGV.size != 5
+vcHost = ARGV[0]
+vcUser = ARGV[1]
+vcPass = ARGV[2]
+dsName = ARGV[3]
+$zbxUrl = ARGV[4]
+
+ESX_GROUP = "#{dsName} ESXi"
+DS_GROUP = "#{dsName} Datastore"
+VM_GROUP = "#{dsName} VirtualMachine"
 ESX_TEMPLATE = "Template-vSphere-ESXi"
 DS_TEMPLATE = "Template-vSphere-Datastore"
 VM_TEMPLATE = "Template-vSphere-VM"
@@ -161,31 +168,33 @@ class VSphere < RbVmomi::VIM
     case type
 
     when "host"
-      @dc.hostFolder.childEntity[0].host.grep(RbVmomi::VIM::HostSystem).each do |stat|
-        newname = stat.name.gsub(/:/,"-")
-        stat_fileName = "h_#{newname}"
-        new_list << newname unless File.exist?($filePath + stat_fileName)
-        statData = {
-          "host-Hostname"         => stat.name,
-          "host-Product"          => stat.summary.config.product.fullName,
-          "host-HardwareMode"     => stat.summary.hardware.model,
-          "host-CPUModel"         => stat.summary.hardware.cpuModel,
-          "host-CPUMHz"           => stat.summary.hardware.cpuMhz,
-          "host-CPUCore"          => stat.summary.hardware.numCpuCores,
-          "host-CPUUsage"         => stat.summary.quickStats.overallCpuUsage,
-          "host-TotalMemorySize"  => stat.summary.hardware.memorySize/1024/1024,
-          "host-MemoryUsage"      => stat.summary.quickStats.overallMemoryUsage,
-          "host-PowerState"       => stat.summary.runtime.powerState,
-          "host-MaintenanceMode"  => stat.summary.runtime.inMaintenanceMode,
-          "host-Uptime"           => stat.summary.quickStats.uptime
-        }
-        writefile(stat_fileName, statData)
-      end
-      if new_list.length > 0
-        unless defined?(@zbxapi)
-          @zbxapi = Zbx.new
+      @dc.hostFolder.childEntity.each do |vmhost|
+        vmhost.host.grep(RbVmomi::VIM::HostSystem).each do |stat|
+          newname = stat.name.gsub(/:/,"-")
+          stat_fileName = "h_#{newname}"
+          new_list << newname unless File.exist?($filePath + stat_fileName)
+          statData = {
+            "host-Hostname"         => stat.name,
+            "host-Product"          => stat.summary.config.product.fullName,
+            "host-HardwareMode"     => stat.summary.hardware.model,
+            "host-CPUModel"         => stat.summary.hardware.cpuModel,
+            "host-CPUMHz"           => stat.summary.hardware.cpuMhz,
+            "host-CPUCore"          => stat.summary.hardware.numCpuCores,
+            "host-CPUUsage"         => stat.summary.quickStats.overallCpuUsage,
+            "host-TotalMemorySize"  => stat.summary.hardware.memorySize/1024/1024,
+            "host-MemoryUsage"      => stat.summary.quickStats.overallMemoryUsage,
+            "host-PowerState"       => stat.summary.runtime.powerState,
+            "host-MaintenanceMode"  => stat.summary.runtime.inMaintenanceMode,
+            "host-Uptime"           => stat.summary.quickStats.uptime
+          }
+          writefile(stat_fileName, statData)
         end
-        @zbxapi.create_zbxHost(new_list, ESX_GROUP, ESX_TEMPLATE)
+        if new_list.length > 0
+          unless defined?(@zbxapi)
+            @zbxapi = Zbx.new
+          end
+          @zbxapi.create_zbxHost(new_list, ESX_GROUP, ESX_TEMPLATE)
+        end
       end
 
     when "ds"
@@ -285,11 +294,8 @@ def stats_file_check(zbx_host, fileName)
 end
 
 
-print_usage if ARGV.size != 4
-vcHost = ARGV[0]
-vcUser = ARGV[1]
-vcPass = ARGV[2]
-$zbxUrl = ARGV[3]
+
+
 
 $filePath = FILEPATH + "/stats/"
 FileUtils.mkdir_p($filePath) unless File.exists?($filePath)
