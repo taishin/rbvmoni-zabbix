@@ -6,6 +6,11 @@ require 'logger'
 require 'rbvmomi'
 require 'fileutils'
 
+def print_usage
+  puts "usage: rbvmomi_zabbix.rb (vCenter Host) (vCenter Username) (vCenter Password) (Prefix Groups Name) (Zabbix URL)"
+  exit
+end
+
 print_usage if ARGV.size != 5
 vcHost = ARGV[0]
 vcUser = ARGV[1]
@@ -13,6 +18,18 @@ vcPass = ARGV[2]
 dsName = ARGV[3]
 $zbxUrl = ARGV[4]
 
+
+##################################
+#User Defined Parameters
+#Exclude Vmware Templates? (jaganz)
+$includeVmwareTemplates = false
+#Deprovisioning Method (delete host or move to deprovisioned host group?)
+$EnableDeprovisioningHostGroup = true
+$DEPROV_GROUP = "Deprovisioned Hosts"
+#Zabbix Valid Login
+$zuser = "Admin"
+$zpass = "zabbix"
+#Other Related Stuff
 ESX_GROUP = "#{dsName} ESXi"
 DS_GROUP = "#{dsName} Datastore"
 VM_GROUP = "#{dsName} VirtualMachine"
@@ -22,12 +39,15 @@ VM_TEMPLATE = "Template-vSphere-VM"
 FILEPATH = "/tmp/vsphere"
 
 
+################
+# SCRIPT START #
+################
 
 class Zbx < ZabbixAPI
 
   def initialize()
-    @user = "Admin"
-    @pass = "zabbix"
+    @user = $zuser
+    @pass = $zpass
     begin
       @zbxapi = ZabbixAPI.new($zbxUrl).login(@user, @pass)
     rescue => exc
@@ -135,6 +155,21 @@ class Zbx < ZabbixAPI
     } if search_zbxHost(hostName)
     send_zbx("host.delete", zbxHash) if zbxHash
   end
+
+  def deprov_zbxHost(hostName, deprovGroup)  
+    if search_zbxGroup(deprovGroup) == false
+      create_zbxGroup(deprovGroup)  
+    end
+    @deprovGroupid = get_zbxGroupId(deprovGroup)   
+    zbxHash = {
+      :hostid => get_zbxHostId(hostName),
+      :groups => [{
+        :groupid => @deprovGroupid 
+      }],
+      :status => 1
+    } if search_zbxHost(hostName)
+    send_zbx("host.update", zbxHash) if zbxHash
+  end
 end
 
 class VSphere < RbVmomi::VIM
@@ -221,6 +256,7 @@ class VSphere < RbVmomi::VIM
 
     when "vm"
       @dc.vmFolder.childEntity.grep(RbVmomi::VIM::VirtualMachine).each do |stat|
+       if stat.summary.config.template != true || (stat.summary.config.template == true && includeVmwareTemplates == true ) #exclude templates (jaganz)
         newname = stat.name.gsub(/:/,"-")
         stat_fileName = "v_#{newname}"
         new_list << newname unless File.exist?($filePath + stat_fileName)
@@ -251,16 +287,12 @@ class VSphere < RbVmomi::VIM
         end
         @zbxapi.create_zbxHost(new_list, VM_GROUP, VM_TEMPLATE)
       end
+     end #exclude Templates
     end
 
     
   end
 
-end
-
-def print_usage
-  puts "usage: rbvmomi_zabbix.rb (vCenter Host) (vCenter Username) (vCenter Password) (Zabbix URL)"
-  exit
 end
 
 def writefile(fileName, data)
@@ -275,16 +307,28 @@ def writefile(fileName, data)
   statsFile.close
 end
 
+
+#Manage Deprovisioning based on delta time of last updated stat files
 def stats_file_age_check(time)
-  # 1日以上更新がないホストはZabbixから削除
   Dir::glob($filePath + "*").each do |f|
     if Time.now - File.stat(f).mtime >= time
       /\A[vhd]_(.*)\z/ =~ File.basename(f)
       unless defined?(zbxapi)
         @zbxapi = Zbx.new
       end
-      @zbxapi.delete_zbxHost($1)
-      File.delete(f)
+      if $EnableDeprovisioningHostGroup == true
+        if $DEPROV_GROUP.to_s.strip.length == 0
+          log.error("Error in deprovisioning step: $EnableDeprovisioningHostGroup is activated but not DEPROV_GROUP is defined.")
+          raise "$EnableDeprovisioningHostGroup is activated but DEPROV_GROUP is not defined."
+        else
+          @zbxapi.deprov_zbxHost($1, $DEPROV_GROUP)
+          $log.info($1 + " deprovisioned (moved into deprovisioning group) on zabbix after " + time.to_s + " seconds without updates")
+        end
+      else
+       $log.info($1 + " deprovisioned (deleted) on zabbix after " + time.to_s + " seconds without updates")
+        @zbxapi.delete_zbxHost($1)
+        File.delete(f)
+      end
     end
   end
 end
@@ -301,7 +345,7 @@ $filePath = FILEPATH + "/stats/"
 FileUtils.mkdir_p($filePath) unless File.exists?($filePath)
 logPath = FILEPATH + "/logs/"
 FileUtils.mkdir_p(logPath) unless File.exists?(logPath)
-$log = Logger.new(logPath + 'test.log', 'weekly')
+$log = Logger.new(logPath + 'rbvmoni-zabbix.log', 'weekly')
 
 
 stats_file_age_check(3600 * 24)
