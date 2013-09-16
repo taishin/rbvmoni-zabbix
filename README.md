@@ -33,4 +33,11 @@ Status files and log files are created in /tmp/vsphere/.
   - `{$VC_PASSWORD}` vCenter Password
   - `{$DS_NAME}` Zabbix Group Prefix
   - `{$ZBX_URL}` Zabbix API URL
+
+## Options
+
+If you do not want to remove VirtualMachine which you removed from Zabbix, $EnableDeprovisioningHostGroup is set to True, you can move to Host Groups called Deprovisioned Hosts of Zabbix, without removing Host.  
+(Thanks, [jaganz](https://github.com/jaganz)!)
+
+
  
