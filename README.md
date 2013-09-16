@@ -1,17 +1,17 @@
 # rbvmoni-zabbix
 
-rbvmoni-zabbixはZabbixでvSphere環境を監視する
-下記の機能を実装している
+rbvmoni-zabbix is a Ruby script which monitors vSphere environment by Zabbix.
 
-* vCenterからESXi、ストレージ、仮想サーバの情報を取得する
-* ESXi、ストレージ、仮想マシンをZabbixに自動登録
-* 仮想マシンが削除されるて1日経つと、Zabbixから自動削除する
+This script has the following features. 
+
+* Getting information of ESXi, Storage, and Virtual Machines from vCenter and Zabbix server monitors them.
+* Auto-registration of the ESXi, Storage and Virtual Machines to Zabbix.
+* Auto-deletion of the ESXi, Storage and Virtual Machines from Zabbix when they are deleted and one day will pass.
 
 ## Prerequisite
 
-rbvmomi、zbxapiが必要
-* vSphere APIを利用するために[rbvmomi](https://github.com/rlane/rbvmomi)をインストール `gem install rbvmomi`
-* Zabbix APIを利用するために[zbxapi](http://rubygems.org/gems/zbxapi)をインストール `gem install zbxapi`
+* [rbvmomi](https://github.com/rlane/rbvmomi) is required in order to use vSphere API. `gem install rbvmomi`
+* [zbxapi](http://rubygems.org/gems/zbxapi) is required in order to use Zabbix API. `gem install zbxapi`
 
 ## Install
 
