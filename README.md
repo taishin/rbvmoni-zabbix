@@ -7,6 +7,7 @@ This script has the following features.
 * Auto-registration of the ESXi, Storage and Virtual Machines to Zabbix.
 * Auto-deletion of the ESXi, Storage and Virtual Machines from Zabbix when they are deleted and one day will pass.
 
+
 ## Prerequisite
 
 * [rbvmomi](https://github.com/rlane/rbvmomi) is required in order to use vSphere API. `gem install rbvmomi`
@@ -40,4 +41,6 @@ If you do not want to remove VirtualMachine which you removed from Zabbix, $Enab
 (Thanks, [jaganz](https://github.com/jaganz)!)
 
 
- 
+ ![Map](http://taishin.github.io/images/zabbix-map.png)
+![HostScreen](http://taishin.github.io/images/zabbix-hostscreen.png)
+
