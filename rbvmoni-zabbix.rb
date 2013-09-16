@@ -15,7 +15,7 @@ print_usage if ARGV.size != 5
 vcHost = ARGV[0]
 vcUser = ARGV[1]
 vcPass = ARGV[2]
-dsName = ARGV[3]
+dcName = ARGV[3]
 $zbxUrl = ARGV[4]
 
 
@@ -24,19 +24,20 @@ $zbxUrl = ARGV[4]
 #Exclude Vmware Templates? (jaganz)
 $includeVmwareTemplates = false
 #Deprovisioning Method (delete host or move to deprovisioned host group?)
-$EnableDeprovisioningHostGroup = true
+$EnableDeprovisioningHostGroup = false
 $DEPROV_GROUP = "Deprovisioned Hosts"
 #Zabbix Valid Login
 $zuser = "Admin"
 $zpass = "zabbix"
 #Other Related Stuff
-ESX_GROUP = "#{dsName} ESXi"
-DS_GROUP = "#{dsName} Datastore"
-VM_GROUP = "#{dsName} VirtualMachine"
+DC_GROUP = "#{dcName}"
+ESX_GROUP = "#{dcName} ESXi"
+DS_GROUP = "#{dcName} Datastore"
+VM_GROUP = "#{dcName} VirtualMachine"
 ESX_TEMPLATE = "Template-vSphere-ESXi"
 DS_TEMPLATE = "Template-vSphere-Datastore"
 VM_TEMPLATE = "Template-vSphere-VM"
-FILEPATH = "/tmp/vsphere"
+FILEPATH = "/tmp/vsphere/#{dcName}"
 
 
 ################
@@ -136,6 +137,10 @@ class Zbx < ZabbixAPI
         }],
         :templates => [{
           :templateid => @templateId
+        }],
+        :macros => [{
+          :macro => "{$DC_NAME}",
+          :value => DC_GROUP
         }]
       } unless search_zbxHost(host)
       send_zbx("host.create", zbxHash) 
@@ -205,7 +210,7 @@ class VSphere < RbVmomi::VIM
     when "host"
       @dc.hostFolder.childEntity.each do |vmhost|
         vmhost.host.grep(RbVmomi::VIM::HostSystem).each do |stat|
-          newname = stat.name.gsub(/:/,"-")
+          newname = stat.name.gsub(/:|\(|\)/,"-")
           stat_fileName = "h_#{newname}"
           new_list << newname unless File.exist?($filePath + stat_fileName)
           statData = {
@@ -234,7 +239,7 @@ class VSphere < RbVmomi::VIM
 
     when "ds"
       @dc.datastore.grep(RbVmomi::VIM::Datastore).each do |stat|
-        newname = stat.name.gsub(/:/,"-")
+        newname = stat.name.gsub(/:|\(|\)/,"-")
         stat_fileName = "d_#{newname}"
         new_list << newname unless File.exist?($filePath + stat_fileName)
         vm_list =[]
@@ -256,8 +261,8 @@ class VSphere < RbVmomi::VIM
 
     when "vm"
       @dc.vmFolder.childEntity.grep(RbVmomi::VIM::VirtualMachine).each do |stat|
-       if stat.summary.config.template != true || (stat.summary.config.template == true && includeVmwareTemplates == true ) #exclude templates (jaganz)
-        newname = stat.name.gsub(/:/,"-")
+       if stat.summary.config.template != true || (stat.summary.config.template == true && $includeVmwareTemplates == true ) #exclude templates (jaganz)
+        newname = stat.name.gsub(/:|\(|\)/,"-")
         stat_fileName = "v_#{newname}"
         new_list << newname unless File.exist?($filePath + stat_fileName)
         statData = {
